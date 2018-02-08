@@ -1,0 +1,120 @@
+p0fplus : The p0f passive fingerprinter with additional network data collection capabilities
+
+Copyright © 2018 by CyGlass, Inc. <support@cyglass.com>
+p0f is Copyright © 2012 by Michal Zalewski  <lcamtuf@coredump.cx>
+p0fplus also incorporates code from the dns_parse project. dns_parse was created by Paul Ferrell 
+at Los Alamos National Laboratory <pferrell@lanl.gov>. The license governing dns_parse is in 
+the file DNS_PARSE.LICENSE in the licenses subdirectory of this directory.
+
+1. What is p0fplus?
+p0fplus is a program that CyGlass, Inc., uses to collect and analyze network packet data. It is a 
+modification of the p0f passive fingerprinting program cited above. In addition to preserving all 
+the fingerprinting capabilities of p0f V3.09b, p0fplus parses and writes out both TCP and UDP 
+packet headers and some DNS payloads. (It also improves the way that p0f deals with VLAN 
+Ethernet traffic.) CyGlass created p0fplus because combining p0f fingerprinting and tshark-like 
+packet collection in a single process is more efficient than doing it in two separate processes, as 
+we were doing previously.
+
+The code that CyGlass has added to p0f is IPv4-centric; it has not been tested on IPv6 traffic. It 
+will not report the content of IPv6 headers, because its output format does not define any way to 
+display those fields. It is possible that it will display TCP and UDP fields and DNS payload 
+correctly from IPv6 packets, but that has not been tested.
+
+Output formats: p0fplus writes its output to stdout as lines of ASCII text. The original p0f 
+program wrote its fingerprinting results as unformatted ASCII text. p0fplus writes the same 
+information as JSON-formatted key-value records, with each record prefixed with the tag 
+"JSON:". p0fplus also writes out new information that was not written by the original p0f, 
+namely TCP and UDP packet header information and DNS query and response content. This 
+new information is written as pipe-separated (i.e. fields separated with the "|" character) text 
+records, with each record prefixed with the tag "TSHARK:". As the tag name suggests, this 
+output mirrors output that CyGlass previously collected using the tshark packet sniffer program. 
+
+The order of fields in the tshark-like records is higgledy-piggledy, for historic reasons. The 
+CyGlass analytics software that takes in the tshark-like data originally worked on a small subset 
+of packet data. As that software got more sophisticated, new packet fields were added to the data 
+space from different layers of the network stack, and the new fields were added at the end of the 
+existing record format to minimize the need to re-code the data ingestor functions. While it 
+would certainly be more pleasing if the records could be rearranged so that all the frame-level 
+fields came first, followed by the transport-level (IP) fields, followed by TCP/UDP fields, 
+and finally application-protocol fields, there are so many instances of the software in operation at 
+present that it would be extremely disruptive to roll out such a change.
+
+p0fplus has only been built and tested in Linux, specifically in Ubuntu 16.04. While we believe 
+that it can be built and used in the same systems as p0f, namely Linux, MacOS, and Windows 
+(using Cygwin and winpcap), we have not confirmed that, and we cannot provide support for 
+building on platforms other than Ubuntu 16.04.
+
+2. Prerequisites
+The build.sh file does a good job of checking that all required files, libraries, and tools are in 
+place before it attempts to compile and link the program. Again, we have only built the program 
+on Ubuntu 16.04, so we don’t know what problems might arise on other platforms. 
+Basic requirements are the GNU C gcc compiler/linker, libc, and development headers, and the 
+libpcap library and headers. We have compiled and linked using gcc version 5.4.0; for apt-get the 
+packages are gcc-5 for the compiler, libc-dev (or libc6-dev) for the c library and headers, and 
+libpcap-dev (or libpcap0.8-dev) for the pcap library and its headers.
+Other development tools, such as autoconfig and make, are not required. A rudimentary Makefile 
+is included for diehard traditionalists who insist on using make, but it simply calls the build.sh 
+script. 
+
+3. Installing
+- Install the prerequisite packages: gcc-5, libc-dev, and libpcap-dev.
+- Download the p0fplus source tarball and unpack into an empty directory.
+- In a terminal window, cd into the p0fplus source directory and type “./build.sh”. This should 
+generate an executable called "p0fplus" in the same directory. If it doesn’t work, the script 
+should generate a semi-helpful error message explaining what went wrong.
+- If you want to install the executable in a $PATH directory you will have to do it by hand, 
+generally using “sudo” to obtain write access to the target directory. Use "cp <src> <dst>" to 
+copy or "mv <src> <dst>" to move. Note that "make install" will not work, even if you say 
+"sudo" first; there is no "install" target in the Makefile, and no "install" path in build.sh.
+
+4. Testing
+The program can be tested using captured pcap files without superuser (sudoer) privilege; to run 
+it against a live network interface requires superuser privilege to gain access to the device.
+- To read data from a pcap file:
+$ ./p0fplus -r sample.pcap
+
+- To read from a network interface:
+$ sudo ./p0fplus -i eth0
+
+The resulting output will of course depend on the input. There should certainly be more 
+TSHARK:-tagged output than JSON:-tagged output, because every TCP or UDP packet 
+generates a TSHARK: record, but only some TCP sessions generate a JSON: record. If you want 
+to see JSON: fingerprinting output, tell the program to read from a network interface and then 
+generate TCP session traffic over that interface by opening a Web browser and going to any Web 
+page.
+
+By default, p0fplus takes in TCP and UDP packets indiscriminately. You can instruct it to be 
+more selective by appending a filter expression to the end of the command line that you use to 
+run the program; the filter expression uses Berkeley Packet Filter (bpf) syntax, and the entire 
+expression needs to be wrapped with single quotes, e.g. ‘dst net 10.0.0.0/8 and port 80’. bpf 
+syntax is explained by "man pcap-filter", or see the brief write-up and further references in 
+P0F.README. 
+
+Other command-line options are described in the file P0F.README in this directory.
+
+5. Contributing
+p0fplus is a special-purpose work for use in conjunction with a processing framework developed 
+by CyGlass, Inc., and we frankly do not anticipate that it will attract a large community of users 
+who are not CyGlass customers. If you do use it and find bugs, please report them (and 
+suggested fixes if you have them) to support@cyglass.com. You are of course welcome to use 
+the code in your own projects, as long as you understand and abide by the terms of the applicable 
+licenses. If you find ways to make the code better, we would like to know about that, too; we will 
+acknowledge the authors of any contributed code that we decide to incorporate into subsequent 
+releases.
+
+CyGlass will respond to bug reports and feature requests on a best-effort basis. In accordance 
+with Sections 15 and 16 of the GNU General Public License Version 3, p0fplus is provided 
+without warranty and without liability for any damages resulting from its use, except as required 
+by applicable law.
+
+6. License
+p0fplus is licensed under the terms of the GNU Lesser General Public License Version 3.0 
+(LGPL v3.0), as well as the dns_parse license in the file DNS_PARSE.LICENSE. The LGPL 
+incorporates the GNU General Public License Version 3, supplemented by  additional permissions. 
+Full text of the applicable licenses is in the files glpl-3.0.txt, gpl-3.0.txt, 
+and DNS_PARSE.LICENSE in the licenses subdirectory of this directory. 
+
+7. Acknowledgements
+p0fplus would not exist without the contributions of two previous open-source projects: the 
+original p0f passive fingerprinter, created by Michal Zalewski, and dns_parse, created by Paul 
+Ferrell at Los Alamos National Lab. 
